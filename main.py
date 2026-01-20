@@ -17,7 +17,7 @@ def get_best_model(api_key):
         return "models/gemini-2.5-flash"
 
 def main():
-    print("--- 🚀 Program Started (Latest Model & English Prompt) ---")
+    print("--- 🚀 Program Started (10s Focused Version) ---")
     gemini_key = os.environ.get("GEMINI_API_KEY")
     
     # 1. Google Cloud Authentication
@@ -26,7 +26,7 @@ def main():
 
     # 2. Spreadsheet Operations
     try:
-        sh = gc.open("TikTok管理シートAI60").sheet1
+        sh = gc.open("TikTok管理シートAI").sheet1
         cell = sh.find("未処理")
         row_num = cell.row
         topic = sh.cell(row_num, 1).value
@@ -39,19 +39,21 @@ def main():
     full_model_name = get_best_model(gemini_key)
     print(f"🤖 Model: {full_model_name}")
 
-    # 4. Gemini API Execution with English Prompt
+    # 4. Gemini API Execution (Optimized for exactly 10s clip)
     gen_url = f"https://generativelanguage.googleapis.com/v1/{full_model_name}:generateContent?key={gemini_key}"
     
-    # 指示を英語に変更。ただし「台本は日本語で」と指定しています。
+    # プロンプトを「10秒前後」に厳密に固定し、コスト効率を最大化します
     prompt = (
-        f"Task: Create a 30-second TikTok script about the theme: '{topic}'.\n"
+        f"Task: Create a concise TikTok script for exactly a 10-second video about the theme: '{topic}'.\n"
         f"Language: The script must be in Japanese.\n"
-        f"Additional Task: Provide a detailed English prompt for an AI video generator (like Luma or Kling) to visualize this content.\n"
+        f"Additional Task: Provide a powerful English prompt for an AI video generator (Kling or Luma).\n"
+        f"Video Length Constraint: Optimize for a single 10-second continuous shot.\n"
+        f"Focus: Highly dynamic movement of the animal (dancing, cooking, etc.) that fits perfectly in a 10s timeframe.\n"
         f"\n"
         f"Strict Output Format:\n"
         f"[Japanese Script Content]\n"
         f"###\n"
-        f"[English Video Prompt]"
+        f"[Concise English Video Prompt]"
     )
 
     max_retries = 3
@@ -63,7 +65,7 @@ def main():
             res = requests.post(gen_url, json={"contents": [{"parts": [{"text": prompt}]}]})
             
             if res.status_code in [503, 429]:
-                print(f"⚠️ Server overloaded (Error {res.status_code}). Retrying in {retry_delay}s...")
+                print(f"⚠️ Server overloaded. Retrying in {retry_delay}s...")
                 time.sleep(retry_delay)
                 continue
             
@@ -77,13 +79,13 @@ def main():
                 video_prompt = parts[1].strip()
             else:
                 script = full_text.strip()
-                video_prompt = f"A high-quality cinematic video of {topic}"
+                video_prompt = f"A high-quality 10s video of {topic} with dynamic motion."
             
             print("💾 Updating spreadsheet...")
             sh.update_cell(row_num, 2, "完了")
             sh.update_cell(row_num, 3, script)
             sh.update_cell(row_num, 4, video_prompt)
-            print("✨ Successfully completed!")
+            print("✨ Successfully completed (10s mode)!")
             return
 
         except Exception as e:
