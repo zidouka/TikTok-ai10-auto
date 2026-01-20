@@ -26,7 +26,7 @@ def main():
 
     # 2. Spreadsheet Operations
     try:
-        sh = gc.open("TikTok管理シートAI").sheet1
+        sh = gc.open("TikTok管理シートAI10").sheet1
         cell = sh.find("未処理")
         row_num = cell.row
         topic = sh.cell(row_num, 1).value
