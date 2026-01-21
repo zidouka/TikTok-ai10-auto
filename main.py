@@ -22,7 +22,7 @@ def gemini_request(url, prompt):
     return res.json()['candidates'][0]['content']['parts'][0]['text']
 
 def main():
-    print("--- 🚀 Auto Content Generator (Direct Row Logic) ---")
+    print("--- 🚀 Auto Content Generator (Stability Version) ---")
     gemini_key = os.environ.get("GEMINI_API_KEY")
     full_model_name = get_best_model(gemini_key)
     gen_url = f"https://generativelanguage.googleapis.com/v1/{full_model_name}:generateContent?key={gemini_key}"
@@ -31,14 +31,15 @@ def main():
     gc = gspread.authorize(creds)
     sh = gc.open("TikTok管理シートAI10").sheet1
 
-    # 1. 未処理の行を探す
-    try:
-        cell = sh.find("未処理")
+    # 1. 未処理の行を探す (findの戻り値を直接チェックする安全な方法)
+    cell = sh.find("未処理")
+    
+    if cell:
         row_num = cell.row
         topic = sh.cell(row_num, 1).value
-        print(f"📌 既存の未処理ネタを処理します: Row {row_num}")
-    except gspread.exceptions.CellNotFound:
-        print("💡 未処理ネタがないため、新規補充して即時実行します...")
+        print(f"📌 既存のネタを処理: Row {row_num}")
+    else:
+        print("💡 ネタがないため補充します...")
         idea_prompt = (
             "Task: Generate 10 unique TikTok themes.\n"
             "Concept: 'Animals doing unexpected human-like activities'.\n"
@@ -47,18 +48,20 @@ def main():
         new_ideas_text = gemini_request(gen_url, idea_prompt)
         new_ideas = [line.strip() for line in new_ideas_text.split('\n') if line.strip()]
         
-        # 最初の1つ目を取得
+        # 最初のネタを今回のターゲットにする
         topic = new_ideas[0]
-        # すべてのネタを書き込む（1つ目は「完了」予定だが、一旦「未処理」で並べる）
+        
+        # ネタを補充
         for idea in new_ideas:
             sh.append_row([idea, "未処理"])
         
-        # 💡 ここが修正ポイント: 
-        # 検索せず、「現在の最終行」をターゲットにする
-        row_num = len(sh.col_values(1)) - len(new_ideas) + 1
-        print(f"📌 新規補充したネタを処理します: Row {row_num} ({topic})")
+        # 補充した直後の行をターゲットにする
+        # 全体の行数から、今追加した数（10個）を逆算して最初の行を特定
+        all_rows = sh.get_all_values()
+        row_num = len(all_rows) - len(new_ideas) + 1
+        print(f"📌 補充したてのネタを処理: Row {row_num}")
 
-    # 2. 生成指示
+    # 2. 生成指示 (API用フォーマット)
     script_prompt = (
         f"Task: Create TikTok content for a 10s video about '{topic}'.\n"
         f"Strict Output Format:\n"
@@ -77,15 +80,15 @@ def main():
             
             script = parts[0].strip() if len(parts) > 0 else ""
             video_prompt = parts[1].strip() if len(parts) > 1 else ""
-            caption_for_api = parts[2].strip() if len(parts) > 2 else ""
+            caption = parts[2].strip() if len(parts) > 2 else ""
             
             # 書き込み
             sh.update_cell(row_num, 2, "完了")
             sh.update_cell(row_num, 3, script)
             sh.update_cell(row_num, 4, video_prompt)
-            sh.update_cell(row_num, 5, caption_for_api)
+            sh.update_cell(row_num, 5, caption)
             
-            print(f"✨ Row {row_num} 正常に完了しました！")
+            print(f"✨ Row {row_num} 完了！")
             break
         except Exception as e:
             print(f"⚠️ リトライ {i+1}: {e}")
