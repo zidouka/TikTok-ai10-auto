@@ -26,7 +26,7 @@ def gemini_request(url, prompt):
     return res.json()['candidates'][0]['content']['parts'][0]['text']
 
 def main():
-    print("--- 🚀 Auto Content Generator (Step 4: 3-Way Trend Mode [F2]) ---")
+    print("--- 🚀 Auto Content Generator (Step 4 Final: Optimized) ---")
     gemini_key = os.environ.get("GEMINI_API_KEY")
     full_model_name = get_best_model(gemini_key)
     gen_url = f"https://generativelanguage.googleapis.com/v1/{full_model_name}:generateContent?key={gemini_key}"
@@ -35,21 +35,37 @@ def main():
     gc = gspread.authorize(creds)
     sh = gc.open("TikTok管理シートAI10").sheet1
 
-    # F2セルからトレンド設定を取得
-    user_input = sh.acell('F2').value
+    # --- 💡 列のタイトルから列番号を自動取得するロジック ---
+    headers = sh.row_values(1)
+    def get_col_index(name):
+        try:
+            return headers.index(name) + 1
+        except ValueError:
+            print(f"⚠️ 警告: 列名 '{name}' が見つかりません。")
+            return None
+
+    col_topic    = get_col_index("ネタ（Input）")
+    col_status   = get_col_index("ステータス")
+    col_script   = get_col_index("60秒台本")
+    col_prompt   = get_col_index("動画生成用プロンプト（英語）")
+    col_caption  = get_col_index("キャプション＆タグ")
+    col_trend    = get_col_index("トレンド設定") # F1セルの名前に合わせました
+
+    # トレンド設定列の「2行目」の値を取得
+    user_input = sh.cell(2, col_trend).value if col_trend else None
     
-    # --- モード判定ロジック ---
+    # --- モード判定 ---
     if not user_input:
-        # 1. 空欄の場合：自動検索
+        # 空欄：自動検索
         trend_instruction = "Search for the latest viral TikTok animal trends (Jan 2026) and incorporate them."
         print("🔍 モード：【自動トレンド検索】")
     elif user_input in ["オフ", "off", "OFF", "なし"]:
-        # 2. 「オフ」系ワードの場合：トレンドなし
-        trend_instruction = "Focus only on the given topic. Do not include specific external trends."
+        # オフ：お題重視
+        trend_instruction = "Focus strictly on the topic. Do not add external viral trends."
         print("⏸ モード：【トレンド機能オフ】")
     else:
-        # 3. それ以外の言葉：手動反映
-        trend_instruction = f"Priority Trend Keyword: {user_input} (Incorporate this theme/style!)"
+        # 入力あり：手動反映
+        trend_instruction = f"Priority Trend Keyword: {user_input} (Incorporate this style!)"
         print(f"✅ モード：【ユーザー指定反映: {user_input}】")
 
     # 1. 未処理の行を探す
@@ -57,31 +73,37 @@ def main():
     
     if cell:
         row_num = cell.row
-        topic = sh.cell(row_num, 1).value
+        topic = sh.cell(row_num, col_topic).value
         print(f"📌 既存のネタを処理: Row {row_num}")
     else:
         print("💡 ネタ補充中...")
-        all_topics = sh.col_values(1)
+        all_topics = sh.col_values(col_topic)
         history_topics = all_topics[-6:] if len(all_topics) >= 6 else all_topics
         history_str = ", ".join(history_topics)
         
         idea_prompt = (
             f"{trend_instruction}\n"
-            "Based on this, generate exactly ONE unique and cute TikTok theme.\n"
-            f"Avoid duplicates with: [{history_str}]\n"
-            "Concept: 'Animals doing human-like activities'. Format: Theme name in Japanese only."
+            "Task: Generate ONE unique and cute TikTok theme.\n"
+            f"Recent history (Avoid): [{history_str}]\n"
+            "Concept: Animals doing human-like activities. Format: Japanese only."
         )
         topic = gemini_request(gen_url, idea_prompt).strip()
-        sh.append_row([topic, "未処理"])
+        
+        # 動的な列配置に対応した新規行追加
+        new_row = [""] * len(headers)
+        new_row[col_topic-1] = topic
+        new_row[col_status-1] = "未処理"
+        sh.append_row(new_row)
+        
         row_num = len(sh.get_all_values())
-        print(f"📌 新ネタ: {topic}")
+        print(f"📌 トレンド反映済みの新ネタ: {topic}")
 
     # 2. 生成指示
     script_prompt = (
         f"Context: {trend_instruction}\n"
-        f"Task: Create TikTok content for a 10s video about '{topic}'.\n"
+        f"Task: Create TikTok content for a 60s video about '{topic}'.\n"
         f"Output MUST follow this structure with '###' separators:\n"
-        f"(Japanese Script)\n###\n(English Video Prompt)\n###\n(Viral Caption & 5 Trending Tags)"
+        f"(Japanese Script)\n###\n(English Video Prompt for Kling)\n###\n(Viral Caption & 5 Tags)"
     )
 
     max_retries = 3
@@ -93,13 +115,13 @@ def main():
             if len(parts) >= 3:
                 script, video_prompt, caption = parts[0], parts[1], parts[2]
             else:
-                script, video_prompt, caption = full_text.split("###")[0], f"Cinematic {topic}", f"{topic} #TikTok"
+                script, video_prompt, caption = full_text, f"Cinematic {topic}", f"{topic} #TikTok"
 
-            # 書き込み
-            sh.update_cell(row_num, 2, "構成済み")
-            sh.update_cell(row_num, 3, script)
-            sh.update_cell(row_num, 4, video_prompt)
-            sh.update_cell(row_num, 5, caption)
+            # 判定された列番号に書き込み
+            sh.update_cell(row_num, col_status, "構成済み")
+            sh.update_cell(row_num, col_script, script)
+            sh.update_cell(row_num, col_prompt, video_prompt)
+            sh.update_cell(row_num, col_caption, caption)
             
             print(f"✨ Row {row_num} 書き込み完了！")
             break
