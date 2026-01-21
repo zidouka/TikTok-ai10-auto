@@ -3,7 +3,7 @@ name: AI Video Prompt Generation
 on:
   schedule:
     # 毎日 日本時間の午前9時（UTC 0:00）に自動実行
-    - cron: '00 12 * * *'
+    - cron: '00 18 * * *'
   workflow_dispatch: # 手動実行ボタンも残す
 
 jobs:
