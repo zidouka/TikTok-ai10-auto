@@ -26,7 +26,7 @@ def gemini_request(url, prompt):
     return res.json()['candidates'][0]['content']['parts'][0]['text']
 
 def main():
-    print("--- 🚀 Auto Content Generator (Step 4: Trend Hybrid Mode [F2]) ---")
+    print("--- 🚀 Auto Content Generator (Step 4: 3-Way Trend Mode [F2]) ---")
     gemini_key = os.environ.get("GEMINI_API_KEY")
     full_model_name = get_best_model(gemini_key)
     gen_url = f"https://generativelanguage.googleapis.com/v1/{full_model_name}:generateContent?key={gemini_key}"
@@ -35,14 +35,22 @@ def main():
     gc = gspread.authorize(creds)
     sh = gc.open("TikTok管理シートAI10").sheet1
 
-    # 💡 F2セルからユーザー指定のトレンドワードを取得
-    user_trend = sh.acell('F2').value
-    if user_trend:
-        trend_instruction = f"Priority Trend Keyword: {user_trend} (Incorporate this theme/style into the script and video!)"
-        print(f"✅ ユーザー指定トレンド(F2)を使用中: {user_trend}")
-    else:
+    # F2セルからトレンド設定を取得
+    user_input = sh.acell('F2').value
+    
+    # --- モード判定ロジック ---
+    if not user_input:
+        # 1. 空欄の場合：自動検索
         trend_instruction = "Search for the latest viral TikTok animal trends (Jan 2026) and incorporate them."
-        print("🔍 自動トレンド検索モードで実行中...")
+        print("🔍 モード：【自動トレンド検索】")
+    elif user_input in ["オフ", "off", "OFF", "なし"]:
+        # 2. 「オフ」系ワードの場合：トレンドなし
+        trend_instruction = "Focus only on the given topic. Do not include specific external trends."
+        print("⏸ モード：【トレンド機能オフ】")
+    else:
+        # 3. それ以外の言葉：手動反映
+        trend_instruction = f"Priority Trend Keyword: {user_input} (Incorporate this theme/style!)"
+        print(f"✅ モード：【ユーザー指定反映: {user_input}】")
 
     # 1. 未処理の行を探す
     cell = sh.find("未処理")
@@ -52,8 +60,7 @@ def main():
         topic = sh.cell(row_num, 1).value
         print(f"📌 既存のネタを処理: Row {row_num}")
     else:
-        # ネタ補充時もトレンドを考慮
-        print("💡 最新トレンドに基づきネタ補充中...")
+        print("💡 ネタ補充中...")
         all_topics = sh.col_values(1)
         history_topics = all_topics[-6:] if len(all_topics) >= 6 else all_topics
         history_str = ", ".join(history_topics)
@@ -66,15 +73,13 @@ def main():
         )
         topic = gemini_request(gen_url, idea_prompt).strip()
         sh.append_row([topic, "未処理"])
-        all_rows = sh.get_all_values()
-        row_num = len(all_rows)
-        print(f"📌 トレンド反映済みの新ネタ: {topic}")
+        row_num = len(sh.get_all_values())
+        print(f"📌 新ネタ: {topic}")
 
     # 2. 生成指示
     script_prompt = (
         f"Context: {trend_instruction}\n"
         f"Task: Create TikTok content for a 10s video about '{topic}'.\n"
-        f"Incorporate latest visual styles and popular audio cues.\n"
         f"Output MUST follow this structure with '###' separators:\n"
         f"(Japanese Script)\n###\n(English Video Prompt)\n###\n(Viral Caption & 5 Trending Tags)"
     )
@@ -99,4 +104,8 @@ def main():
             print(f"✨ Row {row_num} 書き込み完了！")
             break
         except Exception as e:
-            print(f"⚠️ リトライ {i+1}:
+            print(f"⚠️ リトライ {i+1}: {e}")
+            time.sleep(10)
+
+if __name__ == "__main__":
+    main()
