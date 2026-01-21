@@ -90,7 +90,7 @@ def main():
                 video_prompt = f"Cinematic 10s video of {topic}"
                 caption = f"{topic} #TikTok #AI"
 
-            sh.update_cell(row_num, 2, "完了")
+            sh.update_cell(row_num, 2, "構成済み")
             sh.update_cell(row_num, 3, script)
             sh.update_cell(row_num, 4, video_prompt)
             sh.update_cell(row_num, 5, caption)
