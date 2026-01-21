@@ -22,7 +22,7 @@ def gemini_request(url, prompt):
     return res.json()['candidates'][0]['content']['parts'][0]['text']
 
 def main():
-    print("--- 🚀 Auto Content Generator (One-Topic & Fix Column Edition) ---")
+    print("--- 🚀 Auto Content Generator (Step 1: Preview Image Enabled) ---")
     gemini_key = os.environ.get("GEMINI_API_KEY")
     full_model_name = get_best_model(gemini_key)
     gen_url = f"https://generativelanguage.googleapis.com/v1/{full_model_name}:generateContent?key={gemini_key}"
@@ -55,11 +55,11 @@ def main():
         row_num = len(all_rows)
         print(f"📌 補充したネタを処理: Row {row_num} ({topic})")
 
-    # 2. 生成指示（区切り文字のみを出力させるよう厳密に指示）
+    # 2. 生成指示（F列用の画像生成命令を追加）
     script_prompt = (
         f"Task: Create TikTok content for a 10s video about '{topic}'.\n"
         f"Output MUST follow this structure exactly with '###' separators. \n"
-        f"DO NOT include any labels like '[Script]' or '[English Video Prompt]'.\n"
+        f"DO NOT include any labels like '[Script]'.\n"
         f"\n"
         f"Structure:\n"
         f"(Japanese Script)\n"
@@ -67,6 +67,8 @@ def main():
         f"(English Video Prompt for Kling/Luma)\n"
         f"###\n"
         f"(Viral Caption and Hashtags for TikTok)\n"
+        f"###\n"
+        f"(Image Generation URL: Generate a markdown image link using 'https://pollinations.ai/p/[PROMPT]' where [PROMPT] is a URL-encoded English visual description of the animal action. Use cinematic, high-quality style.)\n"
         f"\n"
         f"Constraint for Caption: Hooky opening, 5 trending tags, and NO labels."
     )
@@ -75,26 +77,27 @@ def main():
     for i in range(max_retries):
         try:
             full_text = gemini_request(gen_url, script_prompt)
-            # ### で分割。空白や余計な記号を極限まで排除
             parts = [p.strip() for p in full_text.split("###")]
             
-            if len(parts) >= 3:
+            if len(parts) >= 4:
                 script = parts[0]
                 video_prompt = parts[1]
                 caption = parts[2]
+                preview_url = parts[3] # F列用：完成予想図URL
             else:
-                # 分割失敗時のフォールバック
-                script = full_text.split("###")[0].strip()
-                video_prompt = f"Cinematic 10s video of {topic}"
-                caption = f"{topic} #TikTok #AI"
+                script = parts[0] if len(parts) > 0 else ""
+                video_prompt = parts[1] if len(parts) > 1 else f"Cinematic 10s video of {topic}"
+                caption = parts[2] if len(parts) > 2 else f"{topic} #TikTok #AI"
+                preview_url = f"https://pollinations.ai/p/{topic.replace(' ', '_')}_cinematic_high_quality"
 
-            # 書き込み
+            # 書き込み (F列まで拡張)
             sh.update_cell(row_num, 2, "完了")
             sh.update_cell(row_num, 3, script)
-            sh.update_cell(row_num, 4, video_prompt) # D列：英語プロンプト本文のみ
-            sh.update_cell(row_num, 5, caption)      # E列：バズるキャプション
+            sh.update_cell(row_num, 4, video_prompt)
+            sh.update_cell(row_num, 5, caption)
+            sh.update_cell(row_num, 6, preview_url) # F列に書き込み
             
-            print(f"✨ Row {row_num} 正常に書き込み完了！")
+            print(f"✨ Row {row_num} 正常に書き込み完了！（プレビュー画像URL付き）")
             break
         except Exception as e:
             print(f"⚠️ リトライ {i+1}: {e}")
