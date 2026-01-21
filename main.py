@@ -16,39 +16,52 @@ def get_best_model(api_key):
     except:
         return "models/gemini-2.5-flash"
 
+def gemini_request(url, prompt):
+    """Gemini APIへのリクエスト共通処理"""
+    res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]})
+    res.raise_for_status()
+    return res.json()['candidates'][0]['content']['parts'][0]['text']
+
 def main():
-    print("--- 🚀 Program Started (10s Focused Version) ---")
+    print("--- 🚀 Auto Content Generator Started ---")
     gemini_key = os.environ.get("GEMINI_API_KEY")
-    
-    # 1. Google Cloud Authentication
-    creds, _ = google.auth.default(scopes=['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'])
-    gc = gspread.authorize(creds)
-
-    # 2. Spreadsheet Operations
-    try:
-        sh = gc.open("TikTok管理シートAI10").sheet1
-        cell = sh.find("未処理")
-        row_num = cell.row
-        topic = sh.cell(row_num, 1).value
-        print(f"📌 Row {row_num} Processing: {topic}")
-    except:
-        print("✅ No 'unprocessed' rows found.")
-        return
-
-    # 3. Get Model Name
     full_model_name = get_best_model(gemini_key)
-    print(f"🤖 Model: {full_model_name}")
-
-    # 4. Gemini API Execution (Optimized for exactly 10s clip)
     gen_url = f"https://generativelanguage.googleapis.com/v1/{full_model_name}:generateContent?key={gemini_key}"
     
-    # プロンプトを「10秒前後」に厳密に固定し、コスト効率を最大化します
-    prompt = (
+    # 1. 認証とシート接続
+    creds, _ = google.auth.default(scopes=['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'])
+    gc = gspread.authorize(creds)
+    sh = gc.open("TikTok管理シートAI").sheet1
+
+    # 2. ネタの補充チェック
+    # A列が空、または「未処理」が一つもない場合にネタを自動生成
+    try:
+        cell = sh.find("未処理")
+    except gspread.exceptions.CellNotFound:
+        print("💡 「未処理」のネタがありません。新しいネタを生成中...")
+        idea_prompt = (
+            "Task: Generate 10 unique video themes for TikTok.\n"
+            "Concept: 'Cute animals doing unexpected human-like activities' (e.g., dancing, cooking, office work, playing instruments).\n"
+            "Format: One theme per line. Japanese only. No numbering, no extra text."
+        )
+        new_ideas_text = gemini_request(gen_url, idea_prompt)
+        new_ideas = [line.strip() for line in new_ideas_text.split('\n') if line.strip()]
+        
+        for idea in new_ideas:
+            sh.append_row([idea, "未処理"])
+        print(f"✅ {len(new_ideas)}個の新しいネタを補充しました。")
+        cell = sh.find("未処理") # 補充したので再度検索
+
+    row_num = cell.row
+    topic = sh.cell(row_num, 1).value
+    print(f"📌 Row {row_num} 処理開始: {topic}")
+
+    # 3. 台本と英語プロンプトの生成
+    script_prompt = (
         f"Task: Create a concise TikTok script for exactly a 10-second video about the theme: '{topic}'.\n"
         f"Language: The script must be in Japanese.\n"
         f"Additional Task: Provide a powerful English prompt for an AI video generator (Kling or Luma).\n"
-        f"Video Length Constraint: Optimize for a single 10-second continuous shot.\n"
-        f"Focus: Highly dynamic movement of the animal (dancing, cooking, etc.) that fits perfectly in a 10s timeframe.\n"
+        f"Constraint: Optimize for a single 10-second continuous shot of animal doing unexpected action.\n"
         f"\n"
         f"Strict Output Format:\n"
         f"[Japanese Script Content]\n"
@@ -56,44 +69,25 @@ def main():
         f"[Concise English Video Prompt]"
     )
 
+    # リトライ処理
     max_retries = 3
-    retry_delay = 15
-
     for i in range(max_retries):
         try:
-            print(f"🧠 Requesting AI... (Attempt {i+1}/{max_retries})")
-            res = requests.post(gen_url, json={"contents": [{"parts": [{"text": prompt}]}]})
-            
-            if res.status_code in [503, 429]:
-                print(f"⚠️ Server overloaded. Retrying in {retry_delay}s...")
-                time.sleep(retry_delay)
-                continue
-            
-            res.raise_for_status()
-            full_text = res.json()['candidates'][0]['content']['parts'][0]['text']
-            
-            # 5. Split and Update Spreadsheet
+            full_text = gemini_request(gen_url, script_prompt)
             if "###" in full_text:
                 parts = full_text.split("###")
-                script = parts[0].strip()
-                video_prompt = parts[1].strip()
+                script, video_prompt = parts[0].strip(), parts[1].strip()
             else:
-                script = full_text.strip()
-                video_prompt = f"A high-quality 10s video of {topic} with dynamic motion."
+                script, video_prompt = full_text.strip(), f"A high-quality 10s video of {topic}."
             
-            print("💾 Updating spreadsheet...")
             sh.update_cell(row_num, 2, "完了")
             sh.update_cell(row_num, 3, script)
             sh.update_cell(row_num, 4, video_prompt)
-            print("✨ Successfully completed (10s mode)!")
-            return
-
+            print("✨ 正常に完了しました！")
+            break
         except Exception as e:
-            print(f"❌ Attempt {i+1} failed: {e}")
-            if i < max_retries - 1:
-                time.sleep(retry_delay)
-            else:
-                sh.update_cell(row_num, 2, "Error")
+            print(f"⚠️ エラー (試行 {i+1}): {e}")
+            time.sleep(15)
 
 if __name__ == "__main__":
     main()
