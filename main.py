@@ -22,7 +22,7 @@ def gemini_request(url, prompt):
     return res.json()['candidates'][0]['content']['parts'][0]['text']
 
 def main():
-    print("--- 🚀 Auto Content Generator (Fix: AttributeError Patch) ---")
+    print("--- 🚀 Auto Content Generator (Direct Row Logic) ---")
     gemini_key = os.environ.get("GEMINI_API_KEY")
     full_model_name = get_best_model(gemini_key)
     gen_url = f"https://generativelanguage.googleapis.com/v1/{full_model_name}:generateContent?key={gemini_key}"
@@ -31,12 +31,14 @@ def main():
     gc = gspread.authorize(creds)
     sh = gc.open("TikTok管理シートAI10").sheet1
 
-    # 1. まず「未処理」を探す
-    cell = None
+    # 1. 未処理の行を探す
     try:
         cell = sh.find("未処理")
+        row_num = cell.row
+        topic = sh.cell(row_num, 1).value
+        print(f"📌 既存の未処理ネタを処理します: Row {row_num}")
     except gspread.exceptions.CellNotFound:
-        print("💡 「未処理」が見つかりません。ネタを新規補充します...")
+        print("💡 未処理ネタがないため、新規補充して即時実行します...")
         idea_prompt = (
             "Task: Generate 10 unique TikTok themes.\n"
             "Concept: 'Animals doing unexpected human-like activities'.\n"
@@ -45,22 +47,16 @@ def main():
         new_ideas_text = gemini_request(gen_url, idea_prompt)
         new_ideas = [line.strip() for line in new_ideas_text.split('\n') if line.strip()]
         
-        # ネタを補充
+        # 最初の1つ目を取得
+        topic = new_ideas[0]
+        # すべてのネタを書き込む（1つ目は「完了」予定だが、一旦「未処理」で並べる）
         for idea in new_ideas:
             sh.append_row([idea, "未処理"])
         
-        # 補充した直後に「未処理」を再検索する（ここが重要）
-        time.sleep(2) # スプレッドシートの反映待ち
-        cell = sh.find("未処理")
-
-    # ここで cell が None でないことを保証
-    if not cell:
-        print("⚠️ エラー: ネタの補充に失敗しました。")
-        return
-
-    row_num = cell.row
-    topic = sh.cell(row_num, 1).value
-    print(f"📌 Processing Row {row_num}: {topic}")
+        # 💡 ここが修正ポイント: 
+        # 検索せず、「現在の最終行」をターゲットにする
+        row_num = len(sh.col_values(1)) - len(new_ideas) + 1
+        print(f"📌 新規補充したネタを処理します: Row {row_num} ({topic})")
 
     # 2. 生成指示
     script_prompt = (
@@ -83,17 +79,17 @@ def main():
             video_prompt = parts[1].strip() if len(parts) > 1 else ""
             caption_for_api = parts[2].strip() if len(parts) > 2 else ""
             
-            # 書き込み処理
+            # 書き込み
             sh.update_cell(row_num, 2, "完了")
             sh.update_cell(row_num, 3, script)
             sh.update_cell(row_num, 4, video_prompt)
             sh.update_cell(row_num, 5, caption_for_api)
             
-            print(f"✨ Row {row_num} Successfully processed!")
+            print(f"✨ Row {row_num} 正常に完了しました！")
             break
         except Exception as e:
-            print(f"⚠️ Retry {i+1}: {e}")
-            time.sleep(15)
+            print(f"⚠️ リトライ {i+1}: {e}")
+            time.sleep(10)
 
 if __name__ == "__main__":
     main()
