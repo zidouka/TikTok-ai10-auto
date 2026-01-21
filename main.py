@@ -40,7 +40,7 @@ def main():
     except gspread.exceptions.CellNotFound:
         print("💡 「未処理」のネタがありません。新しいネタを生成中...")
         idea_prompt = (
-            "Task: Generate 10 unique video themes for TikTok.\n"
+            "Task: Generate 1 unique video themes for TikTok.\n"
             "Concept: 'Cute animals doing unexpected human-like activities' (e.g., dancing, cooking, office work, playing instruments).\n"
             "Format: One theme per line. Japanese only. No numbering, no extra text."
         )
