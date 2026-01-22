@@ -17,23 +17,19 @@ def get_best_model(api_key):
         return "models/gemini-2.5-flash"
 
 def gemini_request(url, prompt):
-    # Google検索（最新情報取得）機能を有効化
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "tools": [{"google_search_retrieval": {}}]
     }
     res = requests.post(url, json=payload)
-    
-    # 検索ツールでエラーが出た場合のバックアップ処理
     if res.status_code == 400:
         payload.pop("tools")
         res = requests.post(url, json=payload)
-        
     res.raise_for_status()
     return res.json()['candidates'][0]['content']['parts'][0]['text']
 
 def main():
-    print("--- 🚀 Auto Content Generator (Fixed Prompt + Dynamic Column) ---")
+    print("--- 🚀 Auto Content Generator (Full Optimized Version) ---")
     gemini_key = os.environ.get("GEMINI_API_KEY")
     full_model_name = get_best_model(gemini_key)
     gen_url = f"https://generativelanguage.googleapis.com/v1/{full_model_name}:generateContent?key={gemini_key}"
@@ -42,13 +38,11 @@ def main():
     gc = gspread.authorize(creds)
     sh = gc.open("TikTok管理シートAI10").sheet1
 
-    # --- 💡 列のタイトルから列番号を自動取得するロジック ---
+    # --- 1. 列の自動判定 ---
     headers = sh.row_values(1)
     def get_col_index(name):
-        try:
-            return headers.index(name) + 1
-        except ValueError:
-            return None
+        try: return headers.index(name) + 1
+        except ValueError: return None
 
     col_topic    = get_col_index("ネタ（Input）")
     col_status   = get_col_index("ステータス")
@@ -57,50 +51,39 @@ def main():
     col_caption  = get_col_index("キャプション＆タグ")
     col_trend    = get_col_index("トレンド設定")
 
-    # 指定された列の2行目からトレンド設定を取得
     user_input = sh.cell(2, col_trend).value if col_trend else None
-    
-    if not user_input:
-        trend_instruction = "Search for the latest viral TikTok animal trends (Jan 2026) and incorporate them."
-        print("🔍 モード：【自動トレンド検索】")
-    elif user_input in ["オフ", "off", "OFF", "なし"]:
-        trend_instruction = "Focus only on the given topic. Do not include specific external trends."
-        print("⏸ モード：【トレンド機能オフ】")
-    else:
-        trend_instruction = f"Priority Trend Keyword: {user_input}"
-        print(f"✅ モード：【ユーザー指定反映: {user_input}】")
+    trend_instruction = f"Priority Trend: {user_input}" if user_input else "Search for latest viral TikTok animal trends."
 
-    # 1. 未処理の行を探す
+    # --- 2. ネタの検索と自動補充 ---
     cell = sh.find("未処理")
-    
     if cell:
         row_num = cell.row
         topic = sh.cell(row_num, col_topic).value if col_topic else sh.cell(row_num, 1).value
-        print(f"📌 既存のネタを処理: Row {row_num}")
+        print(f"📌 既存のネタを処理: Row {row_num} -> {topic}")
     else:
-        print("💡 ネタ補充中...")
-        all_topics = sh.col_values(col_topic) if col_topic else sh.col_values(1)
-        history_topics = all_topics[-6:] if len(all_topics) >= 6 else all_topics
-        history_str = ", ".join(history_topics)
+        print("💡 ネタを自動補充中...")
+        all_topics = sh.col_values(col_topic) if col_topic else []
+        history_str = ", ".join(all_topics[-6:])
         
         idea_prompt = (
             f"{trend_instruction}\n"
-            "Based on this, generate exactly ONE unique and cute TikTok theme.\n"
+            "Task: Generate exactly ONE unique and cute TikTok theme.\n"
             f"Avoid duplicates with: [{history_str}]\n"
-            "Concept: 'Animals doing human-like activities'. Format: Theme name in Japanese only."
+            "Concept: 'Animals doing human-like activities'.\n"
+            "IMPORTANT: Output ONLY the theme name in Japanese. No explanations, no intro, no bullet points."
         )
-        topic = gemini_request(gen_url, idea_prompt).strip()
+        # 余計な解説を削ぎ落とすガード処理
+        raw_idea = gemini_request(gen_url, idea_prompt).strip()
+        topic = raw_idea.split('\n')[-1].replace('**', '').replace('テーマ：', '').replace('「', '').replace('」', '').strip()
         
-        # 動的に新規行を作成
         new_row = [""] * len(headers)
         if col_topic: new_row[col_topic-1] = topic
         if col_status: new_row[col_status-1] = "未処理"
         sh.append_row(new_row)
-        
         row_num = len(sh.get_all_values())
-        print(f"📌 新ネタ: {topic}")
+        print(f"✅ 新ネタをA列に追加: {topic} (Row {row_num})")
 
-    # 2. 生成指示（指定されたプロンプトをそのまま使用）
+    # --- 3. 生成指示（指定されたプロンプト） ---
     script_prompt = (
         f"Step 1: Search for the latest TikTok visual trends and popular hashtags for animal videos.\n"
         f"Step 2: Create TikTok content for a 10s video about '{topic}'.\n"
@@ -115,28 +98,22 @@ def main():
         f"(Viral Caption and 5 Trending Hashtags)\n"
     )
 
-    max_retries = 3
-    for i in range(max_retries):
-        try:
-            full_text = gemini_request(gen_url, script_prompt)
-            parts = [p.strip() for p in full_text.split("###")]
-            
-            if len(parts) >= 3:
-                script, video_prompt, caption = parts[0], parts[1], parts[2]
-            else:
-                script, video_prompt, caption = full_text, "Error", "Error"
+    try:
+        full_text = gemini_request(gen_url, script_prompt)
+        parts = [p.strip() for p in full_text.split("###")]
+        
+        script = parts[0] if len(parts) > 0 else "Error"
+        video_prompt = parts[1] if len(parts) > 1 else "Error"
+        caption = parts[2] if len(parts) > 2 else "Error"
 
-            # 判定された列番号に基づいて書き込み
-            if col_status:  sh.update_cell(row_num, col_status, "構成済み")
-            if col_script:  sh.update_cell(row_num, col_script, script)
-            if col_prompt:  sh.update_cell(row_num, col_prompt, video_prompt)
-            if col_caption: sh.update_cell(row_num, col_caption, caption)
-            
-            print(f"✨ Row {row_num} 書き込み完了！")
-            break
-        except Exception as e:
-            print(f"⚠️ リトライ {i+1}: {e}")
-            time.sleep(10)
+        # 判定された各列に書き込み
+        if col_status:  sh.update_cell(row_num, col_status, "構成済み")
+        if col_script:  sh.update_cell(row_num, col_script, script)
+        if col_prompt:  sh.update_cell(row_num, col_prompt, video_prompt)
+        if col_caption: sh.update_cell(row_num, col_caption, caption)
+        print(f"✨ Row {row_num} 書き込み完了！")
+    except Exception as e:
+        print(f"❌ 書き込みエラー: {e}")
 
 if __name__ == "__main__":
     main()
