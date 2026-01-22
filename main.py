@@ -17,19 +17,34 @@ def get_best_model(api_key):
         return "models/gemini-2.5-flash"
 
 def gemini_request(url, prompt):
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "tools": [{"google_search_retrieval": {}}]
-    }
-    res = requests.post(url, json=payload)
-    if res.status_code == 400:
-        payload.pop("tools")
+    # 429エラー対策のためのリトライループ
+    max_retries = 5
+    for attempt in range(max_retries):
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "tools": [{"google_search_retrieval": {}}]
+        }
         res = requests.post(url, json=payload)
-    res.raise_for_status()
-    return res.json()['candidates'][0]['content']['parts'][0]['text']
+        
+        # 429 (Too Many Requests) の場合、待機してリトライ
+        if res.status_code == 429:
+            wait_time = (attempt + 1) * 10  # 10秒, 20秒...と待機を増やす
+            print(f"⏳ API制限中です。{wait_time}秒待機してリトライします（試行 {attempt + 1}/{max_retries}）")
+            time.sleep(wait_time)
+            continue
+            
+        # 400 (ツール非対応) の場合、ツールなしで再送
+        if res.status_code == 400:
+            payload.pop("tools")
+            res = requests.post(url, json=payload)
+            
+        res.raise_for_status()
+        return res.json()['candidates'][0]['content']['parts'][0]['text']
+    
+    raise Exception("APIリミットにより、規定回数のリトライに失敗しました。")
 
 def main():
-    print("--- 🚀 Auto Content Generator (Full Optimized Version) ---")
+    print("--- 🚀 Auto Content Generator (Retry-Enabled Version) ---")
     gemini_key = os.environ.get("GEMINI_API_KEY")
     full_model_name = get_best_model(gemini_key)
     gen_url = f"https://generativelanguage.googleapis.com/v1/{full_model_name}:generateContent?key={gemini_key}"
@@ -70,11 +85,11 @@ def main():
             "Task: Generate exactly ONE unique and cute TikTok theme.\n"
             f"Avoid duplicates with: [{history_str}]\n"
             "Concept: 'Animals doing human-like activities'.\n"
-            "IMPORTANT: Output ONLY the theme name in Japanese. No explanations, no intro, no bullet points."
+            "IMPORTANT: Output ONLY the theme name in Japanese. No explanations."
         )
-        # 余計な解説を削ぎ落とすガード処理
+        
         raw_idea = gemini_request(gen_url, idea_prompt).strip()
-        topic = raw_idea.split('\n')[-1].replace('**', '').replace('テーマ：', '').replace('「', '').replace('」', '').strip()
+        topic = raw_idea.split('\n')[-1].replace('**', '').replace('「', '').replace('」', '').strip()
         
         new_row = [""] * len(headers)
         if col_topic: new_row[col_topic-1] = topic
@@ -82,6 +97,10 @@ def main():
         sh.append_row(new_row)
         row_num = len(sh.get_all_values())
         print(f"✅ 新ネタをA列に追加: {topic} (Row {row_num})")
+
+    # API負荷軽減のためのインターバル
+    print("⏲️ 連続リクエストを避けるため5秒待機します...")
+    time.sleep(5)
 
     # --- 3. 生成指示（指定されたプロンプト） ---
     script_prompt = (
