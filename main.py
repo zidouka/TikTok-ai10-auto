@@ -17,34 +17,38 @@ def get_best_model(api_key):
         return "models/gemini-2.5-flash"
 
 def gemini_request(url, prompt):
-    # 429エラー対策のためのリトライループ
     max_retries = 5
     for attempt in range(max_retries):
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "tools": [{"google_search_retrieval": {}}]
-        }
-        res = requests.post(url, json=payload)
-        
-        # 429 (Too Many Requests) の場合、待機してリトライ
-        if res.status_code == 429:
-            wait_time = (attempt + 1) * 10  # 10秒, 20秒...と待機を増やす
-            print(f"⏳ API制限中です。{wait_time}秒待機してリトライします（試行 {attempt + 1}/{max_retries}）")
-            time.sleep(wait_time)
-            continue
-            
-        # 400 (ツール非対応) の場合、ツールなしで再送
-        if res.status_code == 400:
-            payload.pop("tools")
+        try:
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "tools": [{"google_search_retrieval": {}}]
+            }
             res = requests.post(url, json=payload)
             
-        res.raise_for_status()
-        return res.json()['candidates'][0]['content']['parts'][0]['text']
-    
-    raise Exception("APIリミットにより、規定回数のリトライに失敗しました。")
+            # API制限(429)の場合
+            if res.status_code == 429:
+                wait_time = (attempt + 1) * 20 # 20秒, 40秒, 60秒...と待機
+                print(f"⏳ API制限(429)を検知。{wait_time}秒待機してリトライします({attempt + 1}/{max_retries})")
+                time.sleep(wait_time)
+                continue
+            
+            # 検索ツールエラー(400)の場合
+            if res.status_code == 400:
+                payload.pop("tools")
+                res = requests.post(url, json=payload)
+            
+            res.raise_for_status()
+            return res.json()['candidates'][0]['content']['parts'][0]['text']
+            
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise e
+            time.sleep(10)
+    return None
 
 def main():
-    print("--- 🚀 Auto Content Generator (Retry-Enabled Version) ---")
+    print("--- 🚀 Auto Content Generator (Maximum Reliability Version) ---")
     gemini_key = os.environ.get("GEMINI_API_KEY")
     full_model_name = get_best_model(gemini_key)
     gen_url = f"https://generativelanguage.googleapis.com/v1/{full_model_name}:generateContent?key={gemini_key}"
@@ -69,7 +73,7 @@ def main():
     user_input = sh.cell(2, col_trend).value if col_trend else None
     trend_instruction = f"Priority Trend: {user_input}" if user_input else "Search for latest viral TikTok animal trends."
 
-    # --- 2. ネタの検索と自動補充 ---
+    # --- 2. ネタの検索と補充 ---
     cell = sh.find("未処理")
     if cell:
         row_num = cell.row
@@ -85,10 +89,10 @@ def main():
             "Task: Generate exactly ONE unique and cute TikTok theme.\n"
             f"Avoid duplicates with: [{history_str}]\n"
             "Concept: 'Animals doing human-like activities'.\n"
-            "IMPORTANT: Output ONLY the theme name in Japanese. No explanations."
+            "IMPORTANT: Output ONLY the theme name in Japanese."
         )
         
-        raw_idea = gemini_request(gen_url, idea_prompt).strip()
+        raw_idea = gemini_request(gen_url, idea_prompt)
         topic = raw_idea.split('\n')[-1].replace('**', '').replace('「', '').replace('」', '').strip()
         
         new_row = [""] * len(headers)
@@ -96,13 +100,12 @@ def main():
         if col_status: new_row[col_status-1] = "未処理"
         sh.append_row(new_row)
         row_num = len(sh.get_all_values())
-        print(f"✅ 新ネタをA列に追加: {topic} (Row {row_num})")
+        print(f"✅ 新ネタを追加: {topic} (Row {row_num})")
 
-    # API負荷軽減のためのインターバル
-    print("⏲️ 連続リクエストを避けるため5秒待機します...")
-    time.sleep(5)
+    # リクエスト間の冷却時間
+    time.sleep(10)
 
-    # --- 3. 生成指示（指定されたプロンプト） ---
+    # --- 3. 生成指示 ---
     script_prompt = (
         f"Step 1: Search for the latest TikTok visual trends and popular hashtags for animal videos.\n"
         f"Step 2: Create TikTok content for a 10s video about '{topic}'.\n"
@@ -117,22 +120,24 @@ def main():
         f"(Viral Caption and 5 Trending Hashtags)\n"
     )
 
-    try:
-        full_text = gemini_request(gen_url, script_prompt)
+    print(f"✍️ '{topic}' の詳細構成を生成中...")
+    full_text = gemini_request(gen_url, script_prompt)
+    
+    if full_text:
         parts = [p.strip() for p in full_text.split("###")]
-        
         script = parts[0] if len(parts) > 0 else "Error"
         video_prompt = parts[1] if len(parts) > 1 else "Error"
         caption = parts[2] if len(parts) > 2 else "Error"
 
-        # 判定された各列に書き込み
-        if col_status:  sh.update_cell(row_num, col_status, "構成済み")
-        if col_script:  sh.update_cell(row_num, col_script, script)
-        if col_prompt:  sh.update_cell(row_num, col_prompt, video_prompt)
-        if col_caption: sh.update_cell(row_num, col_caption, caption)
-        print(f"✨ Row {row_num} 書き込み完了！")
-    except Exception as e:
-        print(f"❌ 書き込みエラー: {e}")
+        # 書き込み
+        try:
+            if col_status:  sh.update_cell(row_num, col_status, "構成済み")
+            if col_script:  sh.update_cell(row_num, col_script, script)
+            if col_prompt:  sh.update_cell(row_num, col_prompt, video_prompt)
+            if col_caption: sh.update_cell(row_num, col_caption, caption)
+            print(f"✨ Row {row_num} 全データ書き込み完了！")
+        except Exception as e:
+            print(f"❌ スプレッドシートへの書き込みに失敗: {e}")
 
 if __name__ == "__main__":
     main()
