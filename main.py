@@ -49,7 +49,12 @@ def gemini_request(url, prompt):
     return None
 
 def main():
-    current_year = datetime.now().year  # 💡 これで 最新年 を自動取得
+    # 💡 現在の年月日と月名を詳細に取得
+    now = datetime.now()
+    current_date = now.strftime("%Y-%m-%d")  # 例: 2026-01-23
+    current_month = now.strftime("%B")       # 例: January
+    current_year = now.year
+    
     print("--- 🚀 Auto Content Generator (Fixed Strict Version) ---")
     gemini_key = os.environ.get("GEMINI_API_KEY")
     full_model_name = get_best_model(gemini_key)
@@ -84,14 +89,14 @@ def main():
         print("💡 Generating new idea...")
         # 【修正】ネタ出しプロンプトを英語で厳格化
         idea_prompt = (
-            f"Step 1: Search for the most viral TikTok animal trends and popular themes in {current_year}.\n"
-            f"Step 2: Based on the search, generate 10 unique TikTok video themes.\n"
+            f"Step 1: Search for the most viral TikTok animal trends specifically around {current_date} ({current_month}).\n"
+            f"Step 2: Based on today's search results and seasonal context of {current_month}, generate 10 unique TikTok video themes.\n"
             f"Concept: Animals doing unexpected human-like activities. Priority Trend: {user_input if user_input else 'Latest viral trends'}\n"
             "Constraints: Provide 10 themes in Japanese. One theme per line. \n"
             "DO NOT include any English descriptions, numbering, or introductory text. \n"
             "Example format:\n"
-            "寿司を握る猫\n"
-            "パソコンで仕事をする柴犬"
+            "雪かきをする柴犬\n"
+            "こたつでみかんを食べる猫"
         )
         raw_idea = gemini_request(gen_url, idea_prompt)
         topic = raw_idea.split('\n')[-1].replace('**', '').replace('Concept:', '').strip()
@@ -108,12 +113,12 @@ def main():
 
     # 2. 生成指示 【修正】出力を「###」で厳格に固定
     script_prompt = (
-        f"Step 1: Search for trending keywords, sounds, or slangs in {current_year} TikTok animal videos.\n"
+        f"Step 1: Search for the latest trending keywords, sounds, or hashtags on TikTok as of {current_date}.\n"
         f"Step 2: Create TikTok content for a 10-second video about '{topic}'.\n"
         "Output Requirements:\n"
         "1. A concise Japanese script (approx. 10 seconds).\n"
         "2. A detailed English video prompt for Kling/Luma AI (10s continuous cinematic shot).\n"
-        f"3. A viral Japanese caption: **Incorporate 2-3 trending keywords/slangs from {current_year}.** Include 5 hashtags.\n"
+        f"3. A viral Japanese caption: **MUST incorporate 2-3 of the most recent slangs or trending phrases found in your search today ({current_date}).** Include 5 hashtags.\n"
         "\n"
         "Strict Format: Separate the three elements using '###' ONLY. Do not include any other text.\n"
         "Format Example:\n"
