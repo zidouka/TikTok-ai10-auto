@@ -3,6 +3,7 @@ import gspread
 import google.auth
 import requests
 import time
+from datetime import datetime
 
 def get_best_model(api_key):
     try:
@@ -48,6 +49,7 @@ def gemini_request(url, prompt):
     return None
 
 def main():
+    current_year = datetime.now().year  # 💡 これで 最新年 を自動取得
     print("--- 🚀 Auto Content Generator (Fixed Strict Version) ---")
     gemini_key = os.environ.get("GEMINI_API_KEY")
     full_model_name = get_best_model(gemini_key)
@@ -82,8 +84,9 @@ def main():
         print("💡 Generating new idea...")
         # 【修正】ネタ出しプロンプトを英語で厳格化
         idea_prompt = (
-            "Task: Generate 10 unique TikTok video themes.\n"
-            "Concept: Animals doing unexpected human-like activities (e.g., dancing, cooking, office work).\n"
+            f"Step 1: Search for the most viral TikTok animal trends and popular themes in {current_year}.\n"
+            f"Step 2: Based on the search, generate 10 unique TikTok video themes.\n"
+            f"Concept: Animals doing unexpected human-like activities. Priority Trend: {user_input if user_input else 'Latest viral trends'}\n"
             "Constraints: Provide 10 themes in Japanese. One theme per line. \n"
             "DO NOT include any English descriptions, numbering, or introductory text. \n"
             "Example format:\n"
@@ -105,12 +108,12 @@ def main():
 
     # 2. 生成指示 【修正】出力を「###」で厳格に固定
     script_prompt = (
-        f"Theme: '{topic}'\n"
-        "Task: Create TikTok content for a 10-second video.\n"
+        f"Step 1: Search for trending keywords, sounds, or slangs in {current_year} TikTok animal videos.\n"
+        f"Step 2: Create TikTok content for a 10-second video about '{topic}'.\n"
         "Output Requirements:\n"
         "1. A concise Japanese script (approx. 10 seconds).\n"
         "2. A detailed English video prompt for Kling/Luma AI (10s continuous cinematic shot).\n"
-        "3. A viral Japanese caption with 5 hashtags (No labels like 'Caption:').\n"
+        f"3. A viral Japanese caption: **Incorporate 2-3 trending keywords/slangs from {current_year}.** Include 5 hashtags.\n"
         "\n"
         "Strict Format: Separate the three elements using '###' ONLY. Do not include any other text.\n"
         "Format Example:\n"
