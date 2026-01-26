@@ -90,14 +90,14 @@ def main():
         print("💡 Generating new idea...")
         # 【修正】ネタ出しプロンプトを英語で厳格化
         idea_prompt = (
-            f"Step 1: Search for the most viral TikTok animal trends, especially around {current_date} ({current_month}).\n"
-            f"Step 2: Based on today's search results and trending context for {current_month}, generate 3 unique TikTok video themes.\n"
-            f"Concept: Animals behaving in ridiculously human-like ways. Priority trends: {user_input if user_input else 'latest viral trends'}\n"
-            "Constraints: Provide 3 themes in Japanese. One theme per line.\n"
+            f"Step 1: Search for the most viral TikTok animal trends specifically around {current_date} ({current_month}).\n"
+            f"Step 2: Based on today's search results and seasonal context of {current_month}, generate 10 unique TikTok video themes.\n"
+            f"Concept: Animals doing unexpected human-like activities. Priority Trend: {user_input if user_input else 'Latest viral trends'}\n"
+            "Constraints: Provide 10 themes in Japanese. One theme per line. \n"
             "DO NOT include any English descriptions, numbering, or introductory text. \n"
             "Example format:\n"
-            "ダンスをする柴犬\n"
-            "料理をする猫"
+            "雪かきをする柴犬\n"
+            "こたつでみかんを食べる猫"
         )
         raw_idea = gemini_request(gen_url, idea_prompt)
         topic = raw_idea.split('\n')[-1].replace('**', '').replace('Concept:', '').strip()
@@ -118,13 +118,13 @@ def main():
         f"Step 2: Create TikTok content for a 10-second video about '{topic}'.\n"
         "Output Requirements:\n"
         "1. A concise Japanese script (approx. 10 seconds).\n"
-        "2. A detailed, highly dynamic English video prompt for Kling/Luma AI (10s continuous cinematic shot).\n"
-        f"3. A viral Japanese caption: **Be sure to include one trending slang term.**\n"
+        "2. A detailed English video prompt for Kling/Luma AI (10s continuous cinematic shot).\n"
+        f"3. A viral Japanese caption: **MUST incorporate 2-3 of the latest trending slangs.**\n"
         "\n"
         "**Hashtag Strategy (Strictly follow this):**\n"
         "Include exactly 5 Japanese hashtags at the end of the caption:\n"
         " - 2 Big-word tags (Broad categories like #猫 #おもしろ)\n"
-        " - 1 Middle-word tags (Genre specific like #癒やし動画 #動物のいる暮らし)\n"
+        " - 2 Middle-word tags (Genre specific like #癒やし動画 #動物のいる暮らし)\n"
         f" - 1 Small-word tag (Specific to this theme like #{topic})\n"
         "\n"
         "Strict Format: Separate the three elements using '###' ONLY. Do not include any other text.\n"
