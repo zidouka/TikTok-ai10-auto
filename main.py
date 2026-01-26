@@ -127,7 +127,7 @@ def main():
         " - 2 Middle-word tags (Genre specific like #癒やし動画 #動物のいる暮らし)\n"
         f" - 1 Small-word tag (Specific to this theme like #{topic})\n"
         "\n"
-        "Strict Format: Separate the three elements using '###' ONLY. Do not include any other text.\n"
+        "Strict Format: Separate the four elements using '###' ONLY. Do not include any other text.\n"
         "Format Example:\n"
         "台本の内容\n"
         "###\n"
@@ -135,7 +135,7 @@ def main():
         "###\n"
         "バズる説明文とハッシュタグ"
         "###\n"
-        "Audio Prompt: High-quality sound of a cat meowing with upbeat lo-fi music" # 💡 追加
+        "High-quality sound of a cat meowing with upbeat lo-fi music" # 💡 追加
     )
 
     print(f"✍️ Generating content for: {topic}")
