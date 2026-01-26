@@ -115,11 +115,11 @@ def main():
     # 2. 生成指示 【修正】出力を「###」で厳格に固定
     script_prompt = (
         f"Step 1: Search for the latest trending keywords, sounds, or hashtags on TikTok as of {current_date}.\n"
-        f"Step 2: Create TikTok content for a 10-second video about '{topic}'.\n"
+        f"Step 2: Create TikTok content for a 10-second video of cute baby animals related to '{topic}'.\n"
         "Output Requirements:\n"
         "1. A concise Japanese script (approx. 10 seconds).\n"
-        "2. A detailed, dynamic English video prompt for Kling AI  (10s continuous cinematic shot).\n"
-        f"3. A viral Japanese caption: **Make sure to include one latest trending slang**\n"
+        "2. A detailed English video prompt for Kling AI, including movement of animals and cinematic shots (10s continuous cinematic shot).\n"
+        f"3. A short and viral Japanese caption: **Be sure to include the latest trendy slang**\n"
         "\n"
         "**Hashtag Strategy (Strictly follow this):**\n"
         "Include exactly 4 Japanese hashtags at the end of the caption:\n"
