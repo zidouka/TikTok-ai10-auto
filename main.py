@@ -75,7 +75,7 @@ def main():
     col_prompt   = get_col_index("動画生成用プロンプト（英語）")
     col_caption  = get_col_index("キャプション＆タグ")
     col_trend    = get_col_index("トレンド設定")
-    col_audio    = get_col_index("音声生成用プロンプト（英語）") # 💡 追加
+    #col_audio    = get_col_index("音声生成用プロンプト（英語）") # 💡 追加
 
     user_input = sh.cell(2, col_trend).value if col_trend else None
     trend_instruction = f"Priority Trend: {user_input}" if user_input else "Search for latest viral TikTok animal trends."
@@ -127,7 +127,7 @@ def main():
         " - 2 Middle-word tags (Genre specific like #癒やし動画 #動物のいる暮らし)\n"
         f" - 1 Small-word tag (Specific to this theme like #{topic})\n"
         "\n"
-        "Strict Format: Separate the four elements using '###' ONLY. Do not include any other text.\n"
+        "Strict Format: Separate the three elements using '###' ONLY. Do not include any other text.\n"
         "Format Example:\n"
         "台本の内容\n"
         "###\n"
@@ -135,7 +135,7 @@ def main():
         "###\n"
         "バズる説明文とハッシュタグ"
         "###\n"
-        "High-quality sound of a cat meowing with upbeat lo-fi music" # 💡 追加
+        #"High-quality sound of a cat meowing with upbeat lo-fi music" # 💡 追加
     )
 
     print(f"✍️ Generating content for: {topic}")
@@ -149,14 +149,14 @@ def main():
         script = parts[0] if len(parts) > 0 else "Error"
         video_prompt = parts[1] if len(parts) > 1 else "Error"
         caption = parts[2] if len(parts) > 2 else "Error"
-        audio_prompt = parts[3] if len(parts) > 3 else "Error" # 💡 追加
+        #audio_prompt = parts[3] if len(parts) > 3 else "Error" # 💡 追加
 
         # 【修正】正しい列番号に更新
         if col_status:  sh.update_cell(row_num, col_status, "構成済み")
         if col_script:  sh.update_cell(row_num, col_script, script)
         if col_prompt:  sh.update_cell(row_num, col_prompt, video_prompt)
         if col_caption: sh.update_cell(row_num, col_caption, caption)
-        if col_audio:   sh.update_cell(row_num, col_audio, audio_prompt) # 💡 追加
+        #if col_audio:   sh.update_cell(row_num, col_audio, audio_prompt) # 💡 追加
         print(f"✨ Row {row_num} Processing Complete!")
 
 if __name__ == "__main__":
