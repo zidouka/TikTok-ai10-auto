@@ -119,7 +119,7 @@ def main():
         "Output Requirements:\n"
         "1. A concise Japanese script (approx. 10 seconds).\n"
         "2. A detailed, highly dynamic English video prompt for Kling/Luma AI (10s continuous cinematic shot).\n"
-        f"3. A viral Japanese caption: **MUST incorporate 2-3 of the latest trending slangs.**\n"
+        f"3. A viral Japanese caption: **Be sure to include one trending slang term.**\n"
         "\n"
         "**Hashtag Strategy (Strictly follow this):**\n"
         "Include exactly 5 Japanese hashtags at the end of the caption:\n"
